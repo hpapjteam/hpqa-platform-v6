@@ -1,0 +1,111 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  QA_USER
+}
+
+enum CampaignStatus {
+  SETUP
+  AUTOMATED_QA
+  MANUAL_QA
+  COMPLETED
+  FAILED
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  role      UserRole @default(QA_USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  isActive  Boolean  @default(true)
+
+  campaigns Campaign[]
+}
+
+model Campaign {
+  id          String         @id @default(uuid())
+  name        String
+  country     String
+  status      CampaignStatus @default(SETUP)
+  createdBy   String
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  user        User           @relation(fields: [createdBy], references: [id])
+  inputs      CampaignInput?
+  qaRuns      QaRun[]
+}
+
+model CampaignInput {
+  id             String   @id @default(uuid())
+  campaignId     String   @unique
+  campaignBrief  String?  // URL to uploaded file in Supabase Storage
+  htmlSource     String?  @db.Text
+  outlookEmail   String?  // URL to uploaded .msg file
+  webViewUrl     String?
+  figmaUrl       String?
+  litmusUrl      String?
+
+  campaign       Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+}
+
+model QaRun {
+  id          String   @id @default(uuid())
+  campaignId  String
+  runDate     DateTime @default(now())
+  status      String
+  
+  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  results     QaResult[]
+  manualChecks ManualCheck[]
+}
+
+model QaResult {
+  id          String   @id @default(uuid())
+  qaRunId     String
+  checkName   String
+  status      String   // PASS, FAIL, WARNING
+  details     String?  @db.Text
+  
+  qaRun       QaRun    @relation(fields: [qaRunId], references: [id], onDelete: Cascade)
+}
+
+model ManualCheck {
+  id          String   @id @default(uuid())
+  qaRunId     String
+  checkName   String
+  status      String   // PENDING, PASS, FAIL
+  notes       String?  @db.Text
+  checkedBy   String?
+  
+  qaRun       QaRun    @relation(fields: [qaRunId], references: [id], onDelete: Cascade)
+}
+
+model Report {
+  id          String   @id @default(uuid())
+  campaignId  String
+  generatedAt DateTime @default(now())
+  summary     String?  @db.Text
+  pdfUrl      String?
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  userId      String
+  action      String
+  resourceId  String?
+  details     String?  @db.Text
+  createdAt   DateTime @default(now())
+}
